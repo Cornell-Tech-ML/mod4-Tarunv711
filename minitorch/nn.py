@@ -1,11 +1,10 @@
 from typing import Tuple
 
 from .tensor import Tensor
-from .tensor_functions import Function,rand, tensor
+from .tensor_functions import Function, rand, tensor
 from .fast_ops import FastOps
 from . import operators
 from .autodiff import Context
-
 
 
 # List of functions in this file:
@@ -49,6 +48,8 @@ def tile(input: Tensor, kernel: Tuple[int, int]) -> Tuple[Tensor, int, int]:
     input = input.contiguous().view(batch, channel, new_height, new_width, kh * kw)
 
     return input, new_height, new_width
+
+
 def argmax(input: Tensor, dim: int = -1) -> Tensor:
     """Compute the argmax as a 1-hot tensor
 
@@ -67,6 +68,7 @@ def argmax(input: Tensor, dim: int = -1) -> Tensor:
     max_tensor = fast_max(input, dim)
     return max_tensor == input
 
+
 def avgpool2d(input: Tensor, kernel: Tuple[int, int]) -> Tensor:
     """Tiled average pooling 2D"""
     batch, channel, height, width = input.shape
@@ -84,6 +86,7 @@ def avgpool2d(input: Tensor, kernel: Tuple[int, int]) -> Tensor:
 
     # Add this line to ensure correct shape
     return pooled.contiguous().view(batch, channel, new_height, new_width)
+
 
 class Max(Function):
     @staticmethod
@@ -108,12 +111,25 @@ class Max(Function):
 
     @staticmethod
     def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor, float]:
+        """Backward pass for max operation.
+
+        Args:
+        ----
+            ctx : Context
+                Context object with saved values.
+            grad_output : Tensor
+                Gradient of the output.
+
+        Returns:
+        -------
+            Tuple[Tensor, float]
+                Gradients with respect to the input and zero for the dimension.
+
+        """
         t1, dim = ctx.saved_values
         max_mask = argmax(t1, int(dim.item()))
         # The issue was here - we don't need to divide by the number of max values
         return max_mask * grad_output, 0.0
-
-
 
 
 def max(input: Tensor, dim: int) -> Tensor:
