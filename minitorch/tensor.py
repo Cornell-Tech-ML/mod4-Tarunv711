@@ -478,32 +478,49 @@ class Tensor:
             return Sum.apply(self, tensor(dim))
 
     def mean(self, dim: Optional[int] = None) -> Tensor:
-        """Compute the mean of the tensor along the given dimension"""
-        if dim is None:
-            d = []
-            for i in range(len(self.shape)):
-                d.append(i)
-            return Sum.apply(self, tensor(d)) / operators.prod(self.shape)
+        """Calculate the mean of the tensor along the specified dimension.
+
+        Args:
+        ----
+            dim (Optional[TensorLike]): The dimension along which to sum. If None, sums over all dimensions.
+
+        Returns:
+        -------
+            Tensor: The resulting tensor after mean calculation.
+
+        """
+        if dim is not None:
+            return self.sum(dim) / self.shape[dim]
         else:
-            return Sum.apply(self, tensor(dim)) / operators.prod(self.shape)
+            return self.sum() / self.size
 
-    def permute(self, *order: UserShape | int) -> Tensor:
-        """Permute the dimensions of the tensor"""
-        if len(order) == 1 and isinstance(order[0], int):
-            order = (order[0],)
-        else:
-            order = tuple(order)
+    def permute(self, *order: int) -> Tensor:
+        """Permute the dimensions of the tensor.
 
-        # Convert order to a Tensor
-        order_tensor = tensor(order)
+        Args:
+        ----
+            order (int): The order to permute.
 
-        return Permute.apply(self, order_tensor)
+        Returns:
+        -------
+            Tensor: A new tensor with permuted dimensions.
 
-    def view(self, *shape: UserShape | int) -> Tensor:
-        """View the tensor with the given shape"""
-        if len(shape) == 1 and isinstance(shape[0], int):
-            shape = (shape[0],)
-        return View.apply(self, tensor(shape))
+        """
+        return Permute.apply(self, tensor(list(order)))
+
+    def view(self, *shape: int) -> Tensor:
+        """Permute the dimensions of the tensor.
+
+        Args:
+        ----
+            shape (int): The shape to for view operation.
+
+        Returns:
+        -------
+            Tensor: A new tensor with viewed dimensions.
+
+        """
+        return View.apply(self, tensor(list(shape)))
 
     def zero_grad_(self) -> None:
         """Reset the gradient of the tensor to None"""

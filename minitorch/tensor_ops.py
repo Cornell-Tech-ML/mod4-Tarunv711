@@ -198,8 +198,8 @@ class SimpleOps(TensorOps):
     ) -> Callable[["Tensor", int], "Tensor"]:
         """Higher-order tensor reduce function. ::
 
-          fn_reduce = reduce(fn)
-          out = fn_reduce(a, dim)
+        fn_reduce = reduce(fn)
+        out = fn_reduce(a, dim)
 
         Simple version ::
 
@@ -212,9 +212,9 @@ class SimpleOps(TensorOps):
         Args:
         ----
             fn: function from two floats-to-float to apply
-            start: initial value for reduction
             a (:class:`TensorData`): tensor to reduce over
             dim (int): int of dim to reduce
+            start (float): optional, start value for the reduction
 
         Returns:
         -------
@@ -386,33 +386,15 @@ def tensor_reduce(
         a_strides: Strides,
         reduce_dim: int,
     ) -> None:
-        # TODO: Implement for Task 2.3.
-        # Setup initial index arrays
         out_index = np.zeros(len(out_shape), dtype=np.int32)
-        a_index = np.zeros(len(a_shape), dtype=np.int32)
-
-        # Size of the dimension to reduce
         reduce_size = a_shape[reduce_dim]
-
         for i in range(len(out)):
-            # Convert flat index to tensor index for out
             to_index(i, out_shape, out_index)
-
-            # Copy out_index to a_index
-            a_index[:] = out_index[:]
-
-            # Initialize reduction with the first element
-            a_index[reduce_dim] = 0
-            reduce_value = a_storage[index_to_position(a_index, a_strides)]
-
-            # Reduce over the specified dimension
-            for j in range(1, reduce_size):
-                a_index[reduce_dim] = j
-                pos = index_to_position(a_index, a_strides)
-                reduce_value = fn(reduce_value, a_storage[pos])
-
-            # Store the result
-            out[index_to_position(out_index, out_strides)] = reduce_value
+            o = index_to_position(out_index, out_strides)
+            for s in range(reduce_size):
+                out_index[reduce_dim] = s
+                j = index_to_position(out_index, a_strides)
+                out[o] = fn(out[o], a_storage[j])
 
     return _reduce
 

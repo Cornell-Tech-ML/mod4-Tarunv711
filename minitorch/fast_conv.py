@@ -7,8 +7,6 @@ from numba import njit as _njit
 from .autodiff import Context
 from .tensor import Tensor
 from .tensor_data import (
-    MAX_DIMS,
-    Index,
     Shape,
     Strides,
     Storage,
@@ -22,6 +20,7 @@ Fn = TypeVar("Fn")
 
 
 def njit(fn: Fn, **kwargs: Any) -> Fn:
+    """A wrapper for Numba's njit with inline always."""
     return _njit(inline="always", **kwargs)(fn)  # type: ignore
 
 
@@ -104,23 +103,21 @@ def _tensor_conv1d(
                         # Calculate input width position based on reverse flag
                         if reverse:
                             iw = ow - kx
-                            currk = kw -1 -kx
+                            currk = kw - 1 - kx
                         else:
                             iw = ow + kx
                             currk = kx
                         # Only accumulate if input position is valid
                         if iw < width:
                             # Get input value
-                            i_val = input[
-                                b * s1[0] + ic * s1[1] + iw * s1[2]
-                            ]
+                            i_val = input[b * s1[0] + ic * s1[1] + iw * s1[2]]
                             # Get weight value
-                            w_val = weight[
-                                oc * s2[0] + ic * s2[1] + currk * s2[2]
-                            ]
+                            w_val = weight[oc * s2[0] + ic * s2[1] + currk * s2[2]]
                             acc += i_val * w_val
                 # Store accumulated value in output
-                out[b * out_strides[0] + oc * out_strides[1] + ow * out_strides[2]] = acc
+                out[b * out_strides[0] + oc * out_strides[1] + ow * out_strides[2]] = (
+                    acc
+                )
 
 
 tensor_conv1d = njit(_tensor_conv1d, parallel=True)
@@ -156,6 +153,18 @@ class Conv1dFun(Function):
 
     @staticmethod
     def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor, Tensor]:
+        """Compute the backward pass for the 1D convolution.
+
+        Args:
+        ----
+            ctx (Context): The context object containing information from the forward pass.
+            grad_output (Tensor): The gradient of the output tensor.
+
+        Returns:
+        -------
+            Tuple[Tensor, Tensor]: The gradients of the input and weight tensors.
+
+        """
         input, weight = ctx.saved_values
         batch, in_channels, w = input.shape
         out_channels, in_channels, kw = weight.shape
@@ -257,7 +266,7 @@ def _tensor_conv2d(
 
         # Initialize accumulator
         acc = 0.0
-        
+
         # Iterate over input channels and kernel dimensions
         for in_c in range(in_channels):
             for y in range(kh):
@@ -269,26 +278,16 @@ def _tensor_conv2d(
                     else:
                         in_y = out_y - y
                         in_x = out_x - x
-                    
+
                     # Check bounds
-                    if (in_y >= 0 and in_y < height and in_x >= 0 and in_x < width):
+                    if in_y >= 0 and in_y < height and in_x >= 0 and in_x < width:
                         # Calculate input and weight indices
-                        in_pos = (
-                            out_batch * s10 +
-                            in_c * s11 +
-                            in_y * s12 +
-                            in_x * s13
-                        )
-                        w_pos = (
-                            out_c * s20 +
-                            in_c * s21 +
-                            y * s22 +
-                            x * s23
-                        )
-                        
+                        in_pos = out_batch * s10 + in_c * s11 + in_y * s12 + in_x * s13
+                        w_pos = out_c * s20 + in_c * s21 + y * s22 + x * s23
+
                         # Accumulate product
                         acc += input[in_pos] * weight[w_pos]
-                        
+
         # Store result
         out[p] = acc
 
@@ -324,6 +323,18 @@ class Conv2dFun(Function):
 
     @staticmethod
     def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor, Tensor]:
+        """Compute the backward pass for the 2D convolution.
+
+        Args:
+        ----
+            ctx (Context): The context object containing information from the forward pass.
+            grad_output (Tensor): The gradient of the output tensor.
+
+        Returns:
+        -------
+            Tuple[Tensor, Tensor]: The gradients of the input and weight tensors.
+
+        """
         input, weight = ctx.saved_values
         batch, in_channels, h, w = input.shape
         out_channels, in_channels, kh, kw = weight.shape

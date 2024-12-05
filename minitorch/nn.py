@@ -1,10 +1,11 @@
 from typing import Tuple
 
+from .tensor import Tensor
+from .tensor_functions import Function,rand, tensor
+from .fast_ops import FastOps
 from . import operators
 from .autodiff import Context
-from .fast_ops import FastOps
-from .tensor import Tensor
-from .tensor_functions import Function, rand, tensor
+
 
 
 # List of functions in this file:
@@ -16,6 +17,7 @@ from .tensor_functions import Function, rand, tensor
 # - logsoftmax: Compute the log of the softmax as a tensor - See https://en.wikipedia.org/wiki/LogSumExp#log-sum-exp_trick_for_log-domain_calculations
 # - maxpool2d: Tiled max pooling 2D
 # - dropout: Dropout positions based on random noise, include an argument to turn off
+fast_max = FastOps.reduce(operators.max, -float("inf"))
 
 
 def tile(input: Tensor, kernel: Tuple[int, int]) -> Tuple[Tensor, int, int]:
@@ -38,34 +40,41 @@ def tile(input: Tensor, kernel: Tuple[int, int]) -> Tuple[Tensor, int, int]:
     # TODO: Implement for Task 4.3.
     new_height = height // kh
     new_width = width // kw
-    
+
     # Reshape input to batch x channel x new_height x kernel_height x new_width x kernel_width
-    input = input.contiguous().view(
-        batch, channel, new_height, kh, new_width, kw
-    )
-    
+    input = input.contiguous().view(batch, channel, new_height, kh, new_width, kw)
+
     # Transpose and reshape to get batch x channel x new_height x new_width x (kernel_height * kernel_width)
     input = input.permute(0, 1, 2, 4, 3, 5)
-    input = input.contiguous().view(
-        batch, channel, new_height, new_width, kh * kw
-    )
-    
-    return input, new_height, new_width
+    input = input.contiguous().view(batch, channel, new_height, new_width, kh * kw)
 
-def avgpool2d(input: Tensor, kernel: Tuple[int, int]) -> Tensor:
-    """Tiled average pooling 2D
+    return input, new_height, new_width
+def argmax(input: Tensor, dim: int = -1) -> Tensor:
+    """Compute the argmax as a 1-hot tensor
 
     Args:
     ----
-        input : batch x channel x height x width
-        kernel : height x width of pooling
+        input: batch x channel x height x width
+        dim: dimension to apply argmax
 
     Returns:
     -------
-        Pooled tensor batch x channel x new_height x new_width
+        Tensor of size batch x channel x height x width x 1
 
     """
+    # Create a tensor of zeros with the same shape as the input
+    # Set the dimension to apply argmax to the maximum value
+    max_tensor = fast_max(input, dim)
+    return max_tensor == input
+
+def avgpool2d(input: Tensor, kernel: Tuple[int, int]) -> Tensor:
+    """Tiled average pooling 2D"""
     batch, channel, height, width = input.shape
+    kh, kw = kernel
+
+    # Validate input dimensions
+    assert height % kh == 0, "Height must be divisible by kernel height"
+    assert width % kw == 0, "Width must be divisible by kernel width"
 
     # Reshape input into tiles
     tiled_input, new_height, new_width = tile(input, kernel)
@@ -73,28 +82,54 @@ def avgpool2d(input: Tensor, kernel: Tuple[int, int]) -> Tensor:
     # Take mean over the last dimension (kernel_height * kernel_width)
     pooled = tiled_input.mean(dim=4)
 
-    # Ensure output has correct shape
-    pooled = pooled.contiguous()
-    return pooled.view(batch, channel, new_height, new_width)
+    # Add this line to ensure correct shape
+    return pooled.contiguous().view(batch, channel, new_height, new_width)
+
+class Max(Function):
+    @staticmethod
+    def forward(ctx: Context, a: Tensor, dim: Tensor) -> Tensor:
+        """Forward pass for max operation.
+
+        Args:
+        ----
+            ctx : Context
+            a : input tensor
+            dim : dimension to reduce
+
+        Returns:
+        -------
+            Tensor: maximum values
+
+        """
+        # Save input for backward pass
+        ctx.save_for_backward(a, dim)
+        # Get the maximum value along dimension
+        return fast_max(a, int(dim.item()))
+
+    @staticmethod
+    def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor, float]:
+        t1, dim = ctx.saved_values
+        max_mask = argmax(t1, int(dim.item()))
+        # The issue was here - we don't need to divide by the number of max values
+        return max_mask * grad_output, 0.0
+
+
 
 
 def max(input: Tensor, dim: int) -> Tensor:
-    """Compute the maximum values along the specified dimension.
+    """Compute the max reduction.
 
     Args:
     ----
-        input : Tensor
-            Input tensor.
-        dim : int
-            Dimension along which to compute the maximum.
+        input: input tensor
+        dim: dimension to reduce
 
     Returns:
     -------
-        Tensor
-            Tensor containing the maximum values.
+        Tensor of maximum values
 
     """
-    return input.f.max_reduce(input, dim)
+    return Max.apply(input, input._ensure_tensor(dim))
 
 
 def softmax(input: Tensor, dim: int) -> Tensor:
@@ -140,6 +175,7 @@ def logsoftmax(input: Tensor, dim: int) -> Tensor:
     """
     softmax_tensor = softmax(input, dim)
     return softmax_tensor.log()
+
 
 def maxpool2d(input: Tensor, kernel: Tuple[int, int]) -> Tensor:
     """Tiled max pooling 2D
