@@ -241,7 +241,7 @@ class Sum(Function):
         if dim._tensor.size > 1:
             for i in range(dim._tensor.size):
                 a = a.f.add_reduce(a, i)
-            a = tensor([a._tensor._storage[0]])
+            a = tensor([a._tensor._storage[0]] )
         else:
             a = a.f.add_reduce(a, int(dim._tensor._storage[0]))
         return a

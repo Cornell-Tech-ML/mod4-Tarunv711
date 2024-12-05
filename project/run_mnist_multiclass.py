@@ -1,9 +1,5 @@
 from mnist import MNIST
-import os
-import sys
 
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(parent_dir)
 import minitorch
 
 mndata = MNIST("project/data/")
@@ -45,10 +41,8 @@ class Conv2d(minitorch.Module):
         self.bias = RParam(out_channels, 1, 1)
 
     def forward(self, input):
-        # Apply convolution using Conv2dFun
-        output = minitorch.Conv2dFun.apply(input, self.weights.value)
-        # Add bias
-        return output + self.bias.value
+        # TODO: Implement for Task 4.5.
+        return minitorch.conv2d(input, self.weights.value) + self.bias.value
 
 
 class Network(minitorch.Module):
@@ -73,39 +67,23 @@ class Network(minitorch.Module):
         self.mid = None
         self.out = None
 
-        # First conv layer: 1 input channel, 4 output channels, 3x3 kernel
-        self.conv1 = Conv2d(1, 4, 3, 3)
-
-        # Second conv layer: 4 input channels, 8 output channels, 3x3 kernel
-        self.conv2 = Conv2d(4, 8, 3, 3)
-
-        # Linear layers
-        self.linear1 = Linear(392, 64)  # 392 = 8 * 7 * 7 (after pooling)
-        self.linear2 = Linear(64, C)
+        # TODO: Implement for Task 4.5.
+        self.layer1 = Conv2d(1, 4, 3, 3)
+        self.layer2 = Conv2d(4, 8, 3, 3)
+        self.layer3 = Linear(392, 64)
+        self.layer4 = Linear(64, C)
 
     def forward(self, x):
-        # First conv + ReLU
-        self.mid = self.conv1.forward(x).relu()
+        # TODO: Implement for Task 4.5.
+        self.mid = self.layer1.forward(x).relu()
+        self.out = self.layer2.forward(self.mid).relu()
+        h = minitorch.nn.maxpool2d(self.out, (4, 4))
+        h = h.view(BATCH, 392)
 
-        # Second conv + ReLU
-        self.out = self.conv2.forward(self.mid).relu()
-
-        # Max pooling
-        pooled = minitorch.maxpool2d(self.out, (4, 4))
-
-        # Flatten: batch x channels x height x width -> batch x (channels * height * width)
-        batch_size = pooled.shape[0]
-        flattened = pooled.view(batch_size, 392)
-
-        # First linear layer + ReLU + Dropout
-        hidden = self.linear1.forward(flattened).relu()
-        dropped = minitorch.dropout(hidden, 0.25)
-
-        # Second linear layer
-        logits = self.linear2.forward(dropped)
-
-        # LogSoftmax
-        return minitorch.logsoftmax(logits, dim=1)
+        h = self.layer3.forward(h).relu()
+        h = minitorch.nn.dropout(h, 0.25, not self.training)
+        h = self.layer4.forward(h)
+        return minitorch.nn.logsoftmax(h, 1)
 
 
 def make_mnist(start, stop):
@@ -132,7 +110,7 @@ class ImageTrain:
         return self.model.forward(minitorch.tensor([x], backend=BACKEND))
 
     def train(
-        self, data_train, data_val, learning_rate, max_epochs=500, log_fn=default_log_fn
+        self, data_train, data_val, learning_rate, max_epochs=40, log_fn=default_log_fn
     ):
         (X_train, y_train) = data_train
         (X_val, y_val) = data_val
@@ -190,7 +168,7 @@ class ImageTrain:
                         for i in range(BATCH):
                             m = -1000
                             ind = -1
-                            for j in range(C):
+                            for j in range(0,C):
                                 if out[i, j] > m:
                                     ind = j
                                     m = out[i, j]
@@ -204,4 +182,4 @@ class ImageTrain:
 
 if __name__ == "__main__":
     data_train, data_val = (make_mnist(0, 5000), make_mnist(10000, 10500))
-    ImageTrain().train(data_train, data_val, learning_rate=0.01)
+    ImageTrain().train(data_train, data_val, learning_rate=0.0008)

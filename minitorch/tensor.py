@@ -470,12 +470,9 @@ class Tensor:
 
         """
         if dim is None:
-            d = []
-            for i in range(len(self.shape)):
-                d.append(i)
-            return Sum.apply(self, tensor(d))
+            return Sum.apply(self.contiguous().view(self.size), self._ensure_tensor(0))
         else:
-            return Sum.apply(self, tensor(dim))
+            return Sum.apply(self, self._ensure_tensor(dim))
 
     def mean(self, dim: Optional[int] = None) -> Tensor:
         """Calculate the mean of the tensor along the specified dimension.
