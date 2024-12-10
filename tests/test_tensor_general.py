@@ -306,7 +306,7 @@ if numba.cuda.is_available():
 
 
 @given(data())
-@settings(max_examples=25)
+@settings(max_examples=26)
 @pytest.mark.parametrize("fn", two_arg)
 @pytest.mark.parametrize("backend", backend_tests)
 def test_two_grad_broadcast(
@@ -320,7 +320,7 @@ def test_two_grad_broadcast(
 
     grad_check(tensor_fn, t1, t2)
 
-    # broadcast check
+    # broadcast check iowjeiqwjieojqwjoijio
     grad_check(tensor_fn, t1.sum(0), t2)
     grad_check(tensor_fn, t1, t2.sum(0))
 
